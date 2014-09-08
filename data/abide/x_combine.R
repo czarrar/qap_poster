@@ -26,8 +26,8 @@ qc_func         <- subset(qc, select=c(id_cols, pheno_cols, func_qc_cols, qc_fun
 #' Rename
 #+ rename
 # step 1
-qc_anat         <- sub("anat_", "", names(qc_anat))
-qc_func         <- sub("func_", "", names(qc_func))
+#qc_anat         <- sub("anat_", "", names(qc_anat))
+#qc_func         <- sub("func_", "", names(qc_func))
 # step 2
 qc_anat         <- rename(qc_anat, c(SITE_ID="site", DX_GROUP="dx", DSM_IV_TR="dsm", AGE_AT_SCAN="age", SEX="sex", HANDEDNESS_CATEGORY="handedness", FIQ="iq"))
 qc_func         <- rename(qc_func, c(SITE_ID="site", DX_GROUP="dx", DSM_IV_TR="dsm", AGE_AT_SCAN="age", SEX="sex", HANDEDNESS_CATEGORY="handedness", FIQ="iq"))

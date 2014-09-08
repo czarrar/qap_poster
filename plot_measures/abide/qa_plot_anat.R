@@ -1,20 +1,19 @@
 #' # ABIDE: Anatomical Data Quality Metrics
 
-#' Here we plot all the anatomical QA measures. The code for this can be found 
-#' at https://github.com/preprocessed-connectomes-project/abide/blob/master/plot/qa_plot_anat.R
+#' Here we plot all the anatomical QA measures.
 
 #' ## Load Dependencies
 #' Functions and libraries that are needed for plotting needs
 #' Please see https://github.com/preprocessed-connectomes-project/abide/blob/master/plot/qa_plot_functions.R for actual code.
 #+ anat-source
-source("qa_plot_functions.R")
+source("../qa_plot_functions.R")
 
 #' ## Read in Data
 #' Along with reading the data, we setup descriptions that will be associated
 #' with each column and used as the label for the y-axis.
 #+ anat-read
-df 					<- read.csv("../../data/abide_phenotypic_V1_0b_preprocessed2.csv")
-df$SITE_ID  <- factor(sub("_", " ", as.character(df$SITE_ID)))
+df 					<- read.csv("../../data/abide_anat.csv")
+df$site     <- factor(sub("_", " ", as.character(df$site)))
 qa.measures <- colnames(df)[grep("^anat_", colnames(df))]
 qa.descs    <- list(
     anat_cnr  = "Contrast to Noise Ratio", 
@@ -31,6 +30,6 @@ qa.descs    <- list(
 #+ anat-plot, fig.width=8, fig.height=5, dpi=100
 for (measure in qa.measures) {
     desc <- qa.descs[[measure]]
-    plot_measure(df, measure, desc, site.col="SITE_ID", plot=TRUE, 
+    plot_measure(df, measure, desc, site.col="site", plot=TRUE, 
                              outfile=NULL, rm.outlier=TRUE)
 }

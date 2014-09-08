@@ -49,11 +49,32 @@ qc_func_motion$scan <- as.numeric(sapply(tmp2, function(x) x[2]))
 tmp             <- merge(qc_func, qc_func_motion)
 tmp             <- rename(tmp, c(site="orig_site", site.name="site"))
 qc_func         <- tmp
+# correct site
+qc_anat2         <- ddply(qc_anat, .(site), function(x) {
+  ind <- as.character(qc_func$subject) == as.character(x$subject[1])
+  cat(sum(ind), as.character(x$site[1]), as.character(qc_func$site[ind][1]), "\n")
+  if( sum(ind) != 0) {
+    x$site <- as.character(qc_func$site[ind][1])
+  }
+  x
+})
+qc_anat2$site[qc_anat2$site == "MRN_1"] <- "MRN"
+qc_anat2$site <- as.factor(qc_anat2$site)
+qc_anat <- qc_anat2
 
 #' Filter
 #+ filter
 qc_anat         <- subset(qc_anat, select=c("subject", "session", "site", "cnr", "efc", "fber", "fwhm", "qi1", "snr"))
-qc_func         <- subset(qc_func, select=c("subject", "session", "scan", "site", "fber", "fwhm", "gsr", "dvars", "quality", "mean_fd", "num_fd", "perc_fd"))
+qc_func         <- subset(qc_func, select=c("subject", "session", "scan", "site", "efc", "fber", "fwhm", "gsr", "dvars", "quality", "mean_fd", "num_fd", "perc_fd"))
+
+#' Add on
+#+ addon
+# Anat
+inds            <- !(names(qc_anat) %in% c("subject", "session", "site"))
+names(qc_anat)[inds] <- paste("anat", names(qc_anat)[inds], sep="_")
+# Func
+inds            <- !(names(qc_func) %in% c("subject", "session", "scan", "site"))
+names(qc_func)[inds] <- paste("func", names(qc_func)[inds], sep="_")
 
 #+ save
 write.csv(qc_anat, file="../corr_anat.csv")
