@@ -67,6 +67,45 @@ qc_anat <- qc_anat2
 qc_anat         <- subset(qc_anat, select=c("subject", "session", "site", "cnr", "efc", "fber", "fwhm", "qi1", "snr"))
 qc_func         <- subset(qc_func, select=c("subject", "session", "scan", "site", "efc", "fber", "fwhm", "gsr", "dvars", "quality", "mean_fd", "num_fd", "perc_fd"))
 
+#' There seem to be some duplicate values across sessions/scans
+#' We'll fix it for the anatomical measures by removing the duplicates
+#+ fix-duplicates
+to_num <- function(x) as.numeric(as.character(x))
+qc_anat <- ddply(qc_anat, .(site, subject), function(x) {
+  if (nrow(x) > 1) {
+    x2 <- as.matrix(x[,c("cnr", "efc", "fber", "fwhm", "qi1", "snr")])
+    x2 <- apply(x2, 2, to_num)
+    dmat <- as.matrix(dist(x2))
+    nident <- sum(dmat[lower.tri(dmat)] == 0)
+    if (nident > 1) {
+      cat(as.character(x$site[1]), as.character(x$subject[1]), nident, "\n")
+      bad_inds <- which(dmat[-1,1] == 0) + 1
+      x <- x[-bad_inds,]
+    }
+  }
+  x
+})
+# not doing anything about this for now
+d_ply(qc_func, .(site, subject), function(x) {
+  if (nrow(x) > 1) {
+    x2 <- as.matrix(x[,c("efc", "fber", "fwhm", "gsr", "dvars", "quality", "mean_fd", "num_fd", "perc_fd")])
+    x2 <- apply(x2, 2, to_num)
+    dmat <- as.matrix(dist(x2))
+    nident <- sum(dmat[lower.tri(dmat)] == 0)
+    if (nident > 1) {
+      cat(as.character(x$site[1]), as.character(x$subject[1]), nident, "\n")
+      print(dmat)
+    }
+  }
+})
+
+#' Select removal of sites
+#' IBA-TRT might have some duplicates so will remove
+#' IPCAS 4 has duplicates in the functional data domain so will remove
+#+ rm-sites
+qc_anat <- subset(qc_anat, !(site %in% c("IBATRT", "IPCAS 4")))
+qc_func <- subset(qc_func, !(site %in% c("IBATRT", "IPCAS 4")))
+
 #' Add on
 #+ addon
 # Anat
@@ -76,6 +115,12 @@ names(qc_anat)[inds] <- paste("anat", names(qc_anat)[inds], sep="_")
 inds            <- !(names(qc_func) %in% c("subject", "session", "scan", "site"))
 names(qc_func)[inds] <- paste("func", names(qc_func)[inds], sep="_")
 
+#' Sort Columns
+#+ sort
+qc_anat <- qc_anat[with(qc_anat, order(site, subject, session)),]
+qc_func <- qc_func[with(qc_func, order(site, subject, session, scan)),]
+
+#' Save
 #+ save
 write.csv(qc_anat, file="../corr_anat.csv")
 write.csv(qc_func, file="../corr_func.csv")

@@ -11,11 +11,16 @@
 # Read in the ABIDE dataset
 # apply x, y, z
 
+###
+# Setup
+###
+
 library(reshape2)
 library(grid)
 library(ggplot2)
 library(plyr)
 library(RColorBrewer)
+source("../plot_measures/qa_plot_functions.R")
 
 qc_anat <- read.csv("../data/abide_anat.csv", row.names=1)
 qc_func <- read.csv("../data/abide_func.csv", row.names=1)
@@ -28,13 +33,171 @@ names(qc_func) <- sub("qc_rater", "rater", names(qc_func))
 names(qc_anat) <- sub("anat_", "", names(qc_anat))
 names(qc_func) <- sub("func_", "", names(qc_func))
 
-# Fix up raters to be consistent
+# Remove any NAs
 ## anat
-qc_anat$rater_2[qc_anat$rater_2 == ""] <- NA
-qc_anat$rater_3[qc_anat$rater_3 == ""] <- NA
-qc_anat$rater_1 <- factor(qc_anat$rater_1, levels=c("fail", "maybe", "OK"), labels=c("fail", "maybe", "ok"))
-qc_anat$rater_2 <- factor(qc_anat$rater_2, levels=c("fail", "maybe", "OK"), labels=c("fail", "maybe", "ok"))
-qc_anat$rater_3 <- factor(qc_anat$rater_3, levels=c("fail", "maybe", "OK"), labels=c("fail", "maybe", "ok"))
+rater_cols <- grep("^rater_", names(qc_anat))
+for (i in rater_cols) {
+  qc_anat[[i]][qc_anat[[i]] == ""] <- NA
+}
+## func
+rater_cols <- grep("^rater_", names(qc_func))
+for (i in rater_cols) {
+  qc_func[[i]][qc_func[[i]] == ""] <- NA
+}
+
+# Drop the maybe condition and merge it with fail
+## anat
+rater_cols <- grep("^rater_", names(qc_anat))
+for (i in rater_cols) {
+  col <- as.character(qc_anat[[i]])
+  if (any(col == "maybe", na.rm=T)) {
+    col[!is.na(col)][col[!is.na(col)]=="maybe"] <- "fail"
+  }
+  qc_anat[[i]] <- factor(col)
+}
+## func
+rater_cols <- grep("^rater_", names(qc_func))
+for (i in rater_cols) {
+  col <- as.character(qc_func[[i]])
+  if (any(col == "maybe", na.rm=T)) {
+    col[!is.na(col)][col[!is.na(col)]=="maybe"] <- "fail"
+  }
+  qc_func[[i]] <- factor(col)
+}
+
+# Combine raters
+## anatomical
+rater_cols <- grep("^rater_", names(qc_anat))
+anat_raters <- apply(qc_anat[,rater_cols], 1, function(x) sum(x=="OK", na.rm=T))
+qc_anat$consensus_rating <- anat_raters
+## functional
+rater_cols <- grep("^rater_", names(qc_func))
+func_raters <- apply(qc_func[,rater_cols], 1, function(x) sum(x=="OK", na.rm=T))
+qc_func$consensus_rating <- func_raters
+
+# We will discretize it (ratings 0-2 = fail and 3-4 = ok)
+## anatomical
+rating <- (qc_anat$consensus_rating > 2) + 1
+qc_anat$rating <- factor(rating, levels=c(1,2), labels=c("Fail", "OK"))
+## functional
+rating <- (qc_func$consensus_rating > 2) + 1
+qc_func$rating <- factor(rating, levels=c(1,2), labels=c("Fail", "OK"))
+
+
+
+###
+# Anatomical
+###
+
+# Format DataFrame
+id.vars <- c("subject", "site", "rating")
+measure.vars <- c("cnr", "efc", "fber", "fwhm", "qi1", "snr")
+qc_anat2 <- melt(qc_anat, id.vars=id.vars, measure.vars=measure.vars, variable.name="measure")
+
+# plot - setup + remove outliers
+df <- subset(qc_anat2)
+df <- ddply(df, .(measure), function(x) {
+  x <- x[!is.na(x$value),]
+  inds <- get_outlier_inds(x$value)
+  cat(sum(inds), "\n")
+  x[!inds,]
+})
+# create boxplot that includes outliers
+p0 <- ggplot(df, aes(x=as.factor(rating), y=value)) +
+  geom_boxplot(outlier.shape = NA) + 
+  facet_grid(measure ~ ., scales="free_y") + 
+  ylab("QC Value") +
+  xlab("Rater") + 
+  theme(axis.title.x      = element_text(family = "Times", face = "plain", 
+                                         size=18)) +  
+  theme(axis.title.y      = element_text(family = "Times", face = "plain", 
+                                         size=18, angle=90, vjust=0.75)) +  
+  theme(axis.text.x       = element_text(family = "Times", face = "plain", 
+                                         size=14, vjust=0.95, hjust=1, angle=45)) + 
+  theme(axis.text.y       = element_text(family = "Times", face = "plain", 
+                                         size=16, angle=0, hjust=0.5)) + 
+  theme(axis.ticks.length = unit(.15, "lines")) + 
+  theme(axis.ticks.margin = unit(.15,"lines")) + 
+  theme(plot.margin       = unit(c(1, 1, 0.25, 1), "lines"))
+plot(p0)
+
+# Run the regression and save
+## regression
+fit <- lm(consensus_rating ~ cnr + efc + fber + fwhm + qi1 + snr, data=qc_anat, na.action=na.omit)
+summary(fit)
+## logit (only qi1 and snr are significant)
+mylogit <- glm(rating ~ cnr + efc + fber + fwhm + qi1 + snr, data=qc_anat, family="binomial", na.action=na.omit)
+summary(mylogit)
+
+# NOW DO SPECIFIC ONES
+# efc, qi1
+
+
+
+###
+# Functional
+###
+
+# Format DataFrame
+id.vars <- c("subject", "site", "rating")
+measure.vars <- c("efc", "fber", "fwhm", "dvars", "quality", "mean_fd", "perc_fd", "gsr")
+qc_func2 <- melt(qc_func, id.vars=id.vars, measure.vars=measure.vars, variable.name="measure")
+
+# plot - setup + remove outliers
+df <- subset(qc_func2)
+df <- ddply(df, .(measure), function(x) {
+  x <- x[!is.na(x$value),]
+  inds <- get_outlier_inds(x$value)
+  cat(sum(inds), "\n")
+  x[!inds,]
+})
+# create boxplot that includes outliers
+p0 <- ggplot(df, aes(x=as.factor(rating), y=value)) +
+  geom_boxplot(outlier.shape = NA) + 
+  facet_grid(measure ~ ., scales="free_y") + 
+  ylab("QC Value") +
+  xlab("Rater") + 
+  theme(axis.title.x      = element_text(family = "Times", face = "plain", 
+                                         size=18)) +  
+  theme(axis.title.y      = element_text(family = "Times", face = "plain", 
+                                         size=18, angle=90, vjust=0.75)) +  
+  theme(axis.text.x       = element_text(family = "Times", face = "plain", 
+                                         size=14, vjust=0.95, hjust=1, angle=45)) + 
+  theme(axis.text.y       = element_text(family = "Times", face = "plain", 
+                                         size=16, angle=0, hjust=0.5)) + 
+  theme(axis.ticks.length = unit(.15, "lines")) + 
+  theme(axis.ticks.margin = unit(.15,"lines")) + 
+  theme(plot.margin       = unit(c(1, 1, 0.25, 1), "lines"))
+plot(p0)
+
+# Run the regression and save
+## regression
+fit <- lm(consensus_rating ~ efc + fber + fwhm + dvars + quality + mean_fd + perc_fd + gsr, data=qc_func, na.action=na.omit)
+summary(fit)
+## logit (efc, fwhm, perc_fd, and gsr are significant with fber and quality close to significant)
+mylogit <- glm(rating ~ efc + fber + fwhm + dvars + quality + mean_fd + perc_fd + gsr, data=qc_func, family="binomial", na.action=na.omit)
+summary(mylogit)
+
+# NOW DO SPECIFIC ONES
+# efc, qi1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # First let's plot everything relative to each rater
