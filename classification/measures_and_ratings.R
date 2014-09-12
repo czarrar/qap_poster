@@ -93,6 +93,9 @@ qc_func$rating <- factor(rating, levels=c(1,2), labels=c("Fail", "OK"))
 id.vars <- c("subject", "site", "rating")
 measure.vars <- c("cnr", "efc", "fber", "fwhm", "qi1", "snr")
 qc_anat2 <- melt(qc_anat, id.vars=id.vars, measure.vars=measure.vars, variable.name="measure")
+qc_anat2$measure <- factor(qc_anat2$measure, 
+                           levels=c("cnr", "efc", "fber", "fwhm", "qi1", "snr"), 
+                           labels=c("CNR", "EFC", "FBER", "FWHM", "Qi1", "SNR"))
 
 # plot - setup + remove outliers
 df <- subset(qc_anat2)
@@ -103,23 +106,42 @@ df <- ddply(df, .(measure), function(x) {
   x[!inds,]
 })
 # create boxplot that includes outliers
-p0 <- ggplot(df, aes(x=as.factor(rating), y=value)) +
-  geom_boxplot(outlier.shape = NA) + 
-  facet_grid(measure ~ ., scales="free_y") + 
-  ylab("QC Value") +
-  xlab("Rater") + 
-  theme(axis.title.x      = element_text(family = "Times", face = "plain", 
-                                         size=18)) +  
-  theme(axis.title.y      = element_text(family = "Times", face = "plain", 
-                                         size=18, angle=90, vjust=0.75)) +  
-  theme(axis.text.x       = element_text(family = "Times", face = "plain", 
-                                         size=14, vjust=0.95, hjust=1, angle=45)) + 
-  theme(axis.text.y       = element_text(family = "Times", face = "plain", 
-                                         size=16, angle=0, hjust=0.5)) + 
-  theme(axis.ticks.length = unit(.15, "lines")) + 
-  theme(axis.ticks.margin = unit(.15,"lines")) + 
-  theme(plot.margin       = unit(c(1, 1, 0.25, 1), "lines"))
-plot(p0)
+d_ply(df, .(measure), function(sdf) {
+  # get the range to zoom in
+  rating.means <- with(sdf, tapply(value, rating, mean))
+  rating.sds   <- with(sdf, tapply(value, rating, sd))
+  rating.ranges<- sort(rating.means) + (rating.sds[order(rating.means)] * c(-1,1))
+  p0 <- ggplot(sdf, aes(x=as.factor(rating), y=value, fill=as.factor(rating))) +
+    #geom_boxplot(outlier.shape = NA) + 
+    #geom_bar(stat="identity") + 
+    stat_summary(fun.y="mean", geom="bar") + 
+#    facet_grid(measure ~ ., scale="free_y") +
+    coord_cartesian(ylim=rating.ranges) +
+    ylab(as.character(sdf$measure[1])) +
+    xlab("") + 
+    theme_bw() + 
+    theme(panel.border=element_blank()) +
+    theme(axis.line=element_line(), axis.line.y=element_blank()) +
+    theme(panel.grid.major.x= element_blank()) + 
+    theme(panel.grid.minor.x= element_blank()) + 
+    theme(panel.grid.major.y= element_line(color="grey50")) + 
+    theme(panel.grid.minor.y= element_blank()) + 
+    theme(axis.title.x      = element_blank()) +  
+    theme(axis.title.y      = element_text(family = "Century Gothic", face = "plain", 
+                                           size=18, angle=90, vjust=0.9)) +  
+    theme(axis.text.x       = element_blank()) +
+    theme(axis.text.y       = element_text(family = "Times", face = "plain", 
+                                           size=16, angle=0, hjust=0.75)) + 
+    theme(axis.ticks.y = element_line(color="grey50")) + 
+    theme(axis.ticks.length = unit(.15, "lines")) + 
+    theme(axis.ticks.margin = unit(.3, "lines")) + 
+    theme(axis.ticks.x      = element_blank()) +
+    theme(plot.margin       = unit(c(1, 1, 0.25, 1), "lines")) +
+    theme(legend.position   = "none")
+  plot(p0)
+  outfile <- sprintf("ratings_anat_%s.png", as.character(sdf$measure[1]))
+  ggsave(outfile, p0, height=3, width=3, dpi=100)
+})
 
 # Run the regression and save
 ## regression
@@ -128,9 +150,11 @@ summary(fit)
 ## logit (only qi1 and snr are significant)
 mylogit <- glm(rating ~ cnr + efc + fber + fwhm + qi1 + snr, data=qc_anat, family="binomial", na.action=na.omit)
 summary(mylogit)
-
-# NOW DO SPECIFIC ONES
-# efc, qi1
+sink(file="classify_logit_anat.txt")
+cat("Classify Logit Anat\n")
+cat("Logistic Regression with glm\n\n")
+print(summary(mylogit))
+sink()
 
 
 
@@ -142,6 +166,10 @@ summary(mylogit)
 id.vars <- c("subject", "site", "rating")
 measure.vars <- c("efc", "fber", "fwhm", "dvars", "quality", "mean_fd", "perc_fd", "gsr")
 qc_func2 <- melt(qc_func, id.vars=id.vars, measure.vars=measure.vars, variable.name="measure")
+qc_func2$measure <- factor(qc_func2$measure, 
+                           levels=c( "efc","fber","fwhm","gsr","dvars","quality","mean_fd","perc_fd"), 
+                           labels=c("EFC", "FBER", "FWHM", "GSR", "DVARS", "Quality", "Mean FD", "Percent FD"))
+
 
 # plot - setup + remove outliers
 df <- subset(qc_func2)
@@ -151,24 +179,44 @@ df <- ddply(df, .(measure), function(x) {
   cat(sum(inds), "\n")
   x[!inds,]
 })
-# create boxplot that includes outliers
-p0 <- ggplot(df, aes(x=as.factor(rating), y=value)) +
-  geom_boxplot(outlier.shape = NA) + 
-  facet_grid(measure ~ ., scales="free_y") + 
-  ylab("QC Value") +
-  xlab("Rater") + 
-  theme(axis.title.x      = element_text(family = "Times", face = "plain", 
-                                         size=18)) +  
-  theme(axis.title.y      = element_text(family = "Times", face = "plain", 
-                                         size=18, angle=90, vjust=0.75)) +  
-  theme(axis.text.x       = element_text(family = "Times", face = "plain", 
-                                         size=14, vjust=0.95, hjust=1, angle=45)) + 
-  theme(axis.text.y       = element_text(family = "Times", face = "plain", 
-                                         size=16, angle=0, hjust=0.5)) + 
-  theme(axis.ticks.length = unit(.15, "lines")) + 
-  theme(axis.ticks.margin = unit(.15,"lines")) + 
-  theme(plot.margin       = unit(c(1, 1, 0.25, 1), "lines"))
-plot(p0)
+
+d_ply(df, .(measure), function(sdf) {
+  # get the range to zoom in
+  rating.means <- with(sdf, tapply(value, rating, mean))
+  rating.sds   <- with(sdf, tapply(value, rating, sd))
+  rating.ranges<- sort(rating.means) + (rating.sds[order(rating.means)] * c(-1,1))
+  p0 <- ggplot(sdf, aes(x=as.factor(rating), y=value, fill=as.factor(rating))) +
+    #geom_boxplot(outlier.shape = NA) + 
+    #geom_bar(stat="identity") + 
+    stat_summary(fun.y="mean", geom="bar") + 
+    #    facet_grid(measure ~ ., scale="free_y") +
+    coord_cartesian(ylim=rating.ranges) +
+    ylab(as.character(sdf$measure[1])) +
+    xlab("") + 
+    theme_bw() + 
+    theme(panel.border=element_blank()) +
+    theme(axis.line=element_line(), axis.line.y=element_blank()) +
+    theme(panel.grid.major.x= element_blank()) + 
+    theme(panel.grid.minor.x= element_blank()) + 
+    theme(panel.grid.major.y= element_line(color="grey50")) + 
+    theme(panel.grid.minor.y= element_blank()) + 
+    theme(axis.title.x      = element_blank()) +  
+    theme(axis.title.y      = element_text(family = "Century Gothic", face = "plain", 
+                                           size=18, angle=90, vjust=0.9)) +  
+    theme(axis.text.x       = element_blank()) +
+    theme(axis.text.y       = element_text(family = "Times", face = "plain", 
+                                           size=16, angle=0, hjust=0.75)) + 
+    theme(axis.ticks.y = element_line(color="grey50")) + 
+    theme(axis.ticks.length = unit(.15, "lines")) + 
+    theme(axis.ticks.margin = unit(.3, "lines")) + 
+    theme(axis.ticks.x      = element_blank()) +
+    theme(plot.margin       = unit(c(1, 1, 0.25, 1), "lines")) +
+    theme(legend.position   = "none")
+  plot(p0)
+  outfile <- sprintf("ratings_func_%s.png", as.character(sdf$measure[1]))
+  ggsave(outfile, p0, height=3, width=3, dpi=100)
+})
+
 
 # Run the regression and save
 ## regression
@@ -177,6 +225,11 @@ summary(fit)
 ## logit (efc, fwhm, perc_fd, and gsr are significant with fber and quality close to significant)
 mylogit <- glm(rating ~ efc + fber + fwhm + dvars + quality + mean_fd + perc_fd + gsr, data=qc_func, family="binomial", na.action=na.omit)
 summary(mylogit)
+sink(file="classify_logit_func.txt")
+cat("Classify Logit Anat\n")
+cat("Logistic Regression with glm\n\n")
+print(summary(mylogit))
+sink()
 
 # NOW DO SPECIFIC ONES
 # efc, qi1

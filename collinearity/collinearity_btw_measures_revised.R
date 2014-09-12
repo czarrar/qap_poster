@@ -37,7 +37,7 @@ all_zmats <- daply(qc_anat, .(site), function(x) {
 ns <- daply(qc_anat, .(site), nrow)
 mean_df <- mean(sqrt(ns-3))
 abide_anat <- apply(all_zmats, c(2,3), function(x) tanh(mean(x)/mean_df))
-abide_anat_p <- pcor0(abide_anat, mean(ns), lower.tail=F)
+abide_anat_p <- pcor0(abs(abide_anat), mean(ns), lower.tail=F)
 # Functional
 all_zmats <- daply(qc_func, .(site), function(x) {
   cmat <- cor(x[,func_cols], use="pairwise.complete.obs")
@@ -48,7 +48,7 @@ all_zmats <- daply(qc_func, .(site), function(x) {
 ns <- daply(qc_func, .(site), nrow)
 mean_df <- mean(sqrt(ns-3))
 abide_func <- apply(all_zmats, c(2,3), function(x) tanh(mean(x)/mean_df))
-abide_func_p <- pcor0(abide_func, mean(ns), lower.tail=F)
+abide_func_p <- pcor0(abs(abide_func), mean(ns), lower.tail=F)
 # in case you want the original way
 abide_anat_orig <- cor(qc_anat[,anat_cols], use="pairwise.complete.obs")
 abide_func_orig <- cor(qc_func[,func_cols], use="pairwise.complete.obs")
@@ -90,7 +90,7 @@ ns <- daply(qc_anat, .(site), nrow)
 inds <- ns>10
 mean_df <- mean(sqrt(ns[inds]-3))
 corr_anat <- apply(all_zmats[inds,,], c(2,3), function(x) tanh(mean(x)/mean_df))
-corr_anat_p <- pcor0(corr_anat, mean(ns), lower.tail=F)
+corr_anat_p <- pcor0(abs(corr_anat), mean(ns), lower.tail=F)
 # functional
 all_zmats <- daply(qc_func, .(site), function(x) {
   cmat <- cor(x[,func_cols], use="pairwise.complete.obs")
@@ -102,7 +102,7 @@ ns <- daply(qc_func, .(site), nrow)
 inds <- ns>10
 mean_df <- mean(sqrt(ns[inds]-3))
 corr_func <- apply(all_zmats[inds,,], c(2,3), function(x) tanh(mean(x)/mean_df))
-corr_func_p <- pcor0(corr_func, mean(ns), lower.tail=F)
+corr_func_p <- pcor0(abs(corr_func), mean(ns), lower.tail=F)
 # old way
 corr_anat_orig <- cor(qc_anat[,anat_cols], use="pairwise.complete.obs")
 corr_func_orig <- cor(qc_func[,func_cols], use="pairwise.complete.obs")
@@ -149,23 +149,49 @@ func_p[upper.tri(func_p)] <- corr_func_p[upper.tri(func_p)]
 rmind <- which(colnames(func_p) == "num_fd")
 func_p <- func_p[-rmind,-rmind]
 
+#+ relabel
+## anat
+old_labels <- c("cnr", "efc", "fber", "fwhm", "qi1", "snr")
+new_labels <- c("CNR", "EFC", "FBER", "FWHM", "Qi1", "SNR")
+inds <- sapply(old_labels, function(x) which(colnames(anat)==x))
+colnames(anat) <- new_labels[inds]
+rownames(anat) <- new_labels[inds]
+## func
+old_labels <- c( "efc","fber","fwhm","gsr","dvars","quality","mean_fd","perc_fd")
+new_labels <- c("EFC", "FBER", "FWHM", "GSR", "DVARS", "Quality", "Mean FD", "Percent FD")
+inds <- sapply(old_labels, function(x) which(colnames(func)==x))
+colnames(func) <- new_labels[inds]
+rownames(func) <- new_labels[inds]
 
 #' ## Plot
 #' Generate the corrplot
 #+ viz-plot
 cols <- rev(brewer.pal(10, "RdBu"))
 # the anatomical
-corrplot(anat, method="shade", diag=F, outline=T, order="FPC", col=cols, cl.length=length(cols)+1)
+corrplot(anat, method="color", diag=F, outline=F, col=cols, cl.length=length(cols)+1)
 quartz.save("bysite_anat_corrplot.png", width=5, height=5)
 # the functional
-corrplot(func, method="shade", diag=F, outline=T, order="FPC", col=cols, cl.length=length(cols)+1)
-quartz.save("bysite_func_corrplot.png", width=5, height=5)
+corrplot(func, method="color", diag=F, outline=F, col=cols, cl.length=length(cols)+1)
+quartz.save("bysite_func_corrplot.png", width=4, height=4)
 
-#+ viz-plot-thresh
+#+ viz-plot-sig
 cols <- rev(brewer.pal(10, "RdBu"))
 # the anatomical
-corrplot(anat, method="shade", diag=F, outline=T, order="FPC", col=cols, cl.length=length(cols)+1, p.mat=anat_p)
+corrplot(anat, method="color", diag=F, outline=F,  col=cols, cl.length=length(cols)+1, 
+         tl.cex=2, tl.col="black", p.mat=anat_p)
+quartz.save("bysite_sig_anat_corrplot.png", width=5, height=5)
+# the functional
+corrplot(func, method="color", diag=F, outline=F, col=cols, cl.length=length(cols)+1, 
+         tl.cex=2, tl.col="black", p.mat=func_p)
+quartz.save("bysite_sig_func_corrplot.png", width=4, height=4)
+dev.off()
+
+#+ viz-plot-thr
+cols <- rev(brewer.pal(10, "RdBu"))
+# the anatomical
+corrplot(anat, method="color", diag=F, outline=F,  col=cols, cl.length=length(cols)+1, p.mat=anat_p, insig='blank')
 quartz.save("bysite_thr_anat_corrplot.png", width=5, height=5)
 # the functional
-corrplot(func, method="shade", diag=F, outline=T, order="FPC", col=cols, cl.length=length(cols)+1, p.mat=func_p)
-quartz.save("bysite_thr_func_corrplot.png", width=5, height=5)
+corrplot(func, method="color", diag=F, outline=F, col=cols, cl.length=length(cols)+1, p.mat=func_p, insig='blank')
+quartz.save("bysite_thr_func_corrplot.png", width=4, height=4)
+

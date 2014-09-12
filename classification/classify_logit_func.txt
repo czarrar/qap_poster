@@ -1,0 +1,36 @@
+Classify Logit Anat
+Logistic Regression with glm
+
+
+Call:
+glm(formula = rating ~ efc + fber + fwhm + dvars + quality + 
+    mean_fd + perc_fd + gsr, family = "binomial", data = qc_func, 
+    na.action = na.omit)
+
+Deviance Residuals: 
+    Min       1Q   Median       3Q      Max  
+-2.6252   0.3265   0.4814   0.6474   1.5516  
+
+Coefficients:
+              Estimate Std. Error z value Pr(>|z|)    
+(Intercept)  -8.284661   2.328345  -3.558 0.000373 ***
+efc          10.911241   2.920499   3.736 0.000187 ***
+fber          0.008189   0.004396   1.863 0.062468 .  
+fwhm          1.768961   0.315494   5.607 2.06e-08 ***
+dvars         0.884027   0.820165   1.078 0.281094    
+quality      19.866409  11.999628   1.656 0.097806 .  
+mean_fd      -1.081803   1.112450  -0.972 0.330827    
+perc_fd      -0.021286   0.007820  -2.722 0.006492 ** 
+gsr         -31.246329   6.126108  -5.101 3.39e-07 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+(Dispersion parameter for binomial family taken to be 1)
+
+    Null deviance: 1021.36  on 1098  degrees of freedom
+Residual deviance:  917.48  on 1090  degrees of freedom
+  (13 observations deleted due to missingness)
+AIC: 935.48
+
+Number of Fisher Scoring iterations: 5
+
